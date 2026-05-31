@@ -330,7 +330,3 @@ Key source files include **inline comments** meant for walkthroughs: `backend/ma
 - Built with FastAPI, Next.js, FAISS, and sentence-transformers
 
 ---
-
-## License
-
-MIT (or specify your license)
