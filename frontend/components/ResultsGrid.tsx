@@ -1,5 +1,14 @@
 "use client"
 
+/**
+ * Fetches /search when query or filters change; renders product cards.
+ *
+ * Interview notes:
+ * - Builds URLSearchParams from filters + sort → GET http://localhost:8000/search
+ * - Saves most_relevant_category_path to localStorage for context-aware autosuggest in Header
+ * - Delivery days: Haversine(user, warehouse) via getEstimatedDeliveryDays — not from backend
+ * - sponsored_id from API can mark promoted listings (see isSponsored mapping below)
+ */
 import { useState, useEffect } from "react"
 import { Star, Heart } from "lucide-react"
 import { getEstimatedDeliveryDays } from "@/lib/deliveryUtils"
@@ -52,7 +61,7 @@ export default function ResultsGrid({ query, filters, sort, userLat, userLon, on
 
     updateLoading(true)
 
-    // Real backend call
+    // Single source of truth: backend applies hybrid search + server-side filters
     const searchParams = new URLSearchParams({
       q: query,
       min_price: filters.priceMin.toString(),
@@ -69,7 +78,7 @@ export default function ResultsGrid({ query, filters, sort, userLat, userLon, on
       .then(data => {
         console.log('Received data:', data.results?.slice(0, 3).map((item: any) => ({ title: item.title, price: item.price })))
         
-        // Update localStorage with most relevant category path
+        // Feed autosuggest context: "if user searched shirts, prefer Apparel > Men suggestions"
         if (data.most_relevant_category_path && data.most_relevant_category_path.length > 0) {
           const currentPaths = JSON.parse(localStorage.getItem("previousCategoryPaths") || "[]")
           const newPath = data.most_relevant_category_path

@@ -1,5 +1,7 @@
 "use client"
 
+// Sidebar filters — changes propagate to page.tsx state → ResultsGrid refetches /search
+
 import { useState } from "react"
 
 interface Filters {

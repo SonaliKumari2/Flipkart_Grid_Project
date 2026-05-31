@@ -167,6 +167,11 @@ export default function Header({ onSearch, onHomeClick }: HeaderProps) {
   )
 }
 
+/**
+ * SearchBar — live autosuggest + keyboard UX.
+ * Calls GET /autosuggest on each query change; passes previousCategoryPaths[0] as context.
+ * Selecting a suggestion or pressing Enter calls onSearch() → parent sets query → ResultsGrid loads.
+ */
 function SearchBar({ onSearch }: { onSearch: (query: string) => void }) {
   const [query, setQuery] = useState("")
   const [suggestions, setSuggestions] = useState<string[]>([])
@@ -238,7 +243,7 @@ function SearchBar({ onSearch }: { onSearch: (query: string) => void }) {
       return
     }
 
-    // Get suggestions from backend when user types
+    // Context-aware suggest: backend boosts phrases in same category as last search
     const previousCategoryPaths = JSON.parse(localStorage.getItem("previousCategoryPaths") || "[]")
     const contextCategoryPath = previousCategoryPaths.length > 0 ? previousCategoryPaths[0] : null
     

@@ -1,4 +1,7 @@
 /**
+ * Delivery ETA helpers (client-side only — backend only sends warehouse_loc.coords).
+ *
+ * Interview: explain Haversine great-circle distance, then bucket km → 1–7 days.
  * Calculate the distance between two coordinates using the Haversine formula
  * @param lat1 - Latitude of first point
  * @param lon1 - Longitude of first point

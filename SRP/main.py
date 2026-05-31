@@ -1,3 +1,10 @@
+"""
+Optional Search Results Page (SRP) — Elasticsearch + Learning-to-Rank.
+
+Interview: contrast with backend/main.py (in-memory FAISS). Here Elasticsearch does
+first-stage match, then LTR plugin rescores with smartsearch_linear_model + featureset.
+Requires ES 9.0.1 + LTR plugin running on localhost:9200.
+"""
 from fastapi import FastAPI
 from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer

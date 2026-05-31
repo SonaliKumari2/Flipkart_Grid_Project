@@ -1,3 +1,14 @@
+"""
+Flipkart Grid Search — FastAPI backend.
+
+Interview walkthrough:
+  1. Startup: load products.json → build embeddings (SentenceTransformer) → FAISS indexes
+  2. Also build inverted index, phrase trie, phonetic map, and NetworkX knowledge graph
+  3. GET /autosuggest — multi-strategy query completion (see autosuggest())
+  4. GET /search — hybrid retrieval + filters + ranking (see _compute_search())
+
+Main libraries: FAISS (vectors), RapidFuzz (typos), Metaphone (sound-alike), spaCy (phrases), NetworkX (graph).
+"""
 from fastapi import FastAPI, Query
 from typing import List, Optional
 from pydantic import BaseModel
@@ -18,7 +29,7 @@ from collections import defaultdict, Counter
 from functools import lru_cache
 
 # ------------------------- Setup -------------------------
-# NLP setup and normalization (define functions first)
+# Text normalization runs on every query and catalog field before matching.
 nlp = spacy.load("en_core_web_sm")
 def normalize(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
@@ -52,6 +63,8 @@ with open("data/products.json", encoding='utf-8') as f:
 MAX_REVIEWS = max(p.get('review_count', 0) for p in data) or 1
 
 # ─── Build composite texts & embeddings ───
+# At startup we encode ALL products once (trade-off: slow boot, fast /search at runtime).
+# title_index = semantic match on title; full_index = title + description + synonyms + tags + categories.
 full_texts = []
 for item in data:
     parts = [
@@ -75,6 +88,7 @@ title_index.add(np.array(title_embs))
 full_index.add(np.array(full_embs))
 
 # ─── Build inverted index for lexical lookup ───
+# Maps token → set(product_id). Union with FAISS hits = hybrid retrieval.
 inv_index = defaultdict(set)
 for idx, item in enumerate(data):
     text = normalize(item["title"]) + " " + normalize(item.get("description",""))
@@ -176,7 +190,7 @@ for item in data:
             suggestion_phrases.add(ph)
 suggestion_phrases = sorted(suggestion_phrases)
 
-# Prefix Trie
+# Prefix Trie — O(prefix) autosuggest for phrases extracted from catalog (spaCy noun chunks, tags, etc.)
 phrase_trie = pygtrie.CharTrie()
 for ph in suggestion_phrases:
     phrase_trie[ph] = None
@@ -215,7 +229,8 @@ for idx, item in enumerate(data):
         if ph in text:
             phrase_to_products[ph].append(idx)
 
-# Build simple knowledge graph
+# Knowledge graph — links phrases to categories/tags/attributes for template suggestions
+# e.g. seed "shirt" + neighbor tag "men" → "shirt for men"
 G = nx.Graph()
 # Add phrase nodes
 for ph in suggestion_phrases:
@@ -567,6 +582,16 @@ def autosuggest(
     q: str = Query("", min_length=0),
     context_category_path: Optional[str] = Query(None, description="Previous category path as JSON string for context-aware suggestions")
 ):
+    """
+    Multi-strategy autosuggest pipeline (returns max 8 strings, title-cased).
+
+    Flow by query length:
+      - empty → global_trending
+      - 1 char → trending_map[letter]
+      - 2+ → trie → substring → fuzzy → phonetic → FAISS semantic → graph → templates → rank → dedupe
+
+    Frontend sends context_category_path from last search to boost same category hierarchy.
+    """
     qn = normalize(q)
     qt = translate_hindi_to_english(qn)
     if qt != qn:
@@ -925,8 +950,13 @@ def autosuggest(
 
     return res
 
-# Remove caching for now to debug sorting
 def _compute_search(q_norm, min_price, max_price, min_rating, brand, category, sort_by="relevance"):
+    """
+    Core search: hybrid candidate generation → filters → relevance score → sort → related interleave.
+
+    Ranking formula (relevance sort):
+      score = 0.4*semantic_sim + 0.2*rating + 0.2*search_boost + 0.2*log(reviews)
+    """
     # 1. Encode normalized query
     q_emb = model.encode([q_norm])
 
@@ -1078,6 +1108,7 @@ def _compute_search(q_norm, min_price, max_price, min_rating, brand, category, s
         }
     }
 
+# Public search API — parses natural-language price ("under 50000") then delegates to _compute_search
 @app.get("/search")
 def search(
     q: str = Query(..., min_length=1),

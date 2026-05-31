@@ -1,5 +1,13 @@
 "use client"
 
+/**
+ * Main application shell (Flipkart-style layout).
+ *
+ * Interview notes:
+ * - `query` empty → WelcomeSection; non-empty → FiltersSidebar + ResultsGrid
+ * - Geolocation runs once on mount; coordinates passed to ResultsGrid for delivery ETA
+ * - Filter/sort state lives here and flows down as props (unidirectional data flow)
+ */
 import { useState, useEffect } from "react"
 import Header from "@/components/Header"
 import TrendingBar from "@/components/TrendingBar"
@@ -29,7 +37,7 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // Mandatory geolocation on app load
+  // Ask for GPS once; fallback to Bangalore if denied (see deliveryUtils in ResultsGrid)
   useEffect(() => {
     console.log("Requesting user location...")
     navigator.geolocation.getCurrentPosition(
